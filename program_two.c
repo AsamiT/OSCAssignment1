@@ -14,46 +14,54 @@
 #include <unistd.h>  /* _exit, fork */
 #include <string.h>
 
-int n = 2;
-pid_t pids[2];
+int main(int argc, const char* argv[]) {
+    
+    int n = atoi(argv[1]);
+    
+    if (n < 2 || n > 3) {
+        printf("This program does not support any variables other than 2 or 3.\n");
+        exit(0);
+    }
+   
+    pid_t pids[n];
 
-int main() {
-    int fd1[2]; //declare pipeline
-    int fd2[2]; //declare pipeline
+    int fd[2], fd1[2], fd2[2], fd3[2], fd4[2]; //declare pipelines
+    pipe(fd);
     pipe(fd1);
     pipe(fd2);
+    pipe(fd3);
+    pipe(fd4);
+
     int int_Array[] = {2,3,7,-1,10,6}; //declare array
     int arraySum = 0; //sum of the array
+    int posindex = 0; //position in the array
+    int div_index = 0;
+    int n_index = 0;
+    int child_Sum = 0;
     int arraySize = sizeof(int_Array)/sizeof(int); //length of the array
-    int divPoint = arraySize / n; //point where we divide the array.
-    int sum_A;
-    int sum_B;
-    
-    /* The following block of code is simply the allocation and memory copy of the array into two pieces so we can send them to the children processes when the time comes. */
-    int *set_A = malloc(divPoint * sizeof(int));
-    if (!set_A) {
-        printf("Cannot allocate memory for Set A.\n");
-        exit(0);
-    }
-    int *set_B = malloc(divPoint * sizeof(int));
-    if (!set_B) {
-        printf("Cannot allocate memory for Set B.\n");
-        exit(0);
-    }
-    memcpy(set_A, int_Array, divPoint*sizeof(int));
-    memcpy(set_B, int_Array+divPoint, divPoint*sizeof(int));
-    
-    /*
-     DEBUG -- this verifies that our copied arrays work correctly.
-    for (int z=0; z < divPoint; z++) {
-        printf("%d\n", set_A[z]);
-        printf("%d\n", set_B[z]);
-    }
-    */
+    int divPoint = (arraySize / n); //point where we divide the array.
+    int s_Array[n][divPoint];
+    int unionArray[n];
 
-    printf("Parent process is currently running, and has an array size of %d. pid:%d\n\n", arraySize, getpid());
-    write(fd1[1], &set_A, sizeof(set_A));
-    write(fd2[1], &set_B, sizeof(set_B));
+    printf("Parent process is currently running, and has an array size of %d. pid:%d\n", arraySize, getpid());
+    printf("Splitting array into %d pieces...\n", n);
+    
+    for (int a=0; a < arraySize; a++) {
+        if ((a % divPoint) == 0 && (a != 0)) {
+            //printf("%d | %d\n", a, divPoint);
+            n_index++;
+            div_index = 0;
+        }
+        //debug: printf("di: %d\n", div_index);
+        s_Array[n_index][div_index] = int_Array[a];
+        //debug: printf("sArray[%d][%d] = %d\n", n_index, div_index, s_Array[n_index][div_index]);
+        div_index++;
+    }
+    
+    write(fd[1], &child_Sum, sizeof(child_Sum));
+    write(fd1[1], &s_Array, sizeof(s_Array));
+    write(fd2[1], &unionArray, sizeof(unionArray));
+    write(fd3[1], &divPoint, sizeof(divPoint));
     
     for (int i=0; i < n; ++i) {
         if ((pids[i] = fork()) < 0) {
@@ -61,37 +69,24 @@ int main() {
             abort();
         }
         else if (pids[i] == 0) {
-            if (i == 0) {
-                read(fd1[0], &set_A, sizeof(set_A));
-                printf("This is the child process responsible for set A. pid:%d\n", getpid());
-                sum_A = 0;
-                for (int z=0; z < divPoint; z++) {
-                    sum_A += set_A[z];
-                }
-                printf("partial sum (A) = %d\n\n", sum_A);
-                write(fd1[1],&sum_A,sizeof(sum_A));
+            for (int b=0; b < divPoint; b++) {
+                //printf("%d-%d --> %d\n", i, b, s_Array[i][b]);
+                child_Sum += s_Array[i][b];
             }
-            else if (i == 1) {
-                read(fd2[0], &set_B, sizeof(set_B));
-                printf("This is the child process responsible for set B. pid:%d\n", getpid());
-                sum_B = 0;
-                for (int z=0; z < divPoint; z++) {
-                    sum_B += set_B[z];
-                }
-                printf("partial sum (B) = %d\n\n", sum_B);
-                write(fd2[1], &sum_B, sizeof(sum_B));
-            }
+            //printf("%d\n", child_Sum);
+            printf("Child process executed; pid=%d; child_Sum=%d\n", getpid(), child_Sum);
+            write(fd4[1], &child_Sum, sizeof(child_Sum));
             exit(0);
         }
     }
     
     while (n > 0) {
         wait(NULL);
+        read(fd4[0], &child_Sum, sizeof(child_Sum));
+        arraySum += child_Sum;
         --n;
     }
-    read(fd1[0], &sum_A, sizeof(sum_A));
-    read(fd2[0], &sum_B, sizeof(sum_B));
     printf("Now you're back to the parent process. pid:%d\n", getpid());
-    arraySum = (sum_A+sum_B);
-    printf("total sum (A+B) = %d\n", arraySum);
-}
+    printf("total sum = %d\n", arraySum);
+ 
+ }
