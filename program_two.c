@@ -14,12 +14,22 @@
 #include <unistd.h>  /* _exit, fork */
 #include <string.h>
 
+void syntaxError() {
+    printf("Syntax Error: one argument with integer value of 2 or 3.");
+    exit(0);
+}
+
 int main(int argc, const char* argv[]) {
+    
+    if (!argv[1]) {
+        syntaxError();
+        exit(0);
+    }
     
     int n = atoi(argv[1]);
     
     if (n < 2 || n > 3) {
-        printf("This program does not support any variables other than 2 or 3.\n");
+        syntaxError();
         exit(0);
     }
    
